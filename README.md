@@ -1,0 +1,33 @@
+# Quick start guide
+
+If you are using a userscript manager such as Tampermonkey, it should let you install the script directly using this link: [Install](https://github.com/PigeonBar/flowr-community-renders/raw/refs/heads/main/dist/community-renders.user.js).
+
+After this initial installation, your userscript manager should automatically take care of detecting and applying updates to your installed script.
+
+There are also more detailed installation steps below.
+
+# About
+
+Welcome! This is a free, publicly available project to showcase renders created by flowr.fun's artist community. This is a very new project right now, so you can look forward to additional features being added in the future. If you have any feedback or any renders/features/ideas that you want to be added, please feel free to message me on Discord (username: pigeonbar) or submit a feature request on this GitHub repository!
+
+I intend to comply with all guidelines and conditions set by the flowr developers. Please report any compliance-related issues to me as needed, and I will fix them asap.
+
+# Installation steps
+
+The userscript is stored at [dist/community-renders.user.js](https://github.com/PigeonBar/flowr-community-renders/raw/refs/heads/main/dist/community-renders.user.js).
+
+This script is meant to be installed using a userscript manager, such as Tampermonkey. If needed, you can install Tampermonkey itself through their [official website](https://www.tampermonkey.net/).
+
+Once you have installed a userscript manager, navigate to the raw script file (e.g., [dist/community-renders.user.js](https://github.com/PigeonBar/flowr-community-renders/raw/refs/heads/main/dist/community-renders.user.js)) on GitHub, and then your userscript manager should automatically prompt you to install the script. If this does not work, you can instead manually install the script using the following steps:
+
+1. Copy the script's contents (Ctrl+A then Ctrl+C).
+2. Click on your userscript manager's "Create a new script" button to open up a script editor.
+3. Paste the script's contents into the editor (Ctrl+A then Ctrl+V), then save the script (Ctrl+S).
+
+After this initial installation, your userscript manager should automatically take care of detecting and applying updates to your installed script.
+
+# Security notice
+
+Currently, this GitHub repository (https://github.com/PigeonBar/flowr-community-renders) is the **only official source** for this script. If you ever receive this script as a file from any other source, then **do not trust that source**, since bad actors may have tampered with the file to add malicious code.
+
+Likewise, if you would like to share this script with other people, then please link them to this GitHub repository instead of directly sending them this script as a file. Thank you for helping to keep other flowr players safe online.

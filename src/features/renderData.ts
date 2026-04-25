@@ -2,6 +2,14 @@
 // artists to coexist and use different rendering data.
 
 /**
+ * A fixed list of names used to identify artists.
+ */
+export type ArtistName =
+  "Base game" |
+  "Guest" |
+  "NGL880";
+
+/**
  * The data structure for the rendering data for each individual mob component.
  */
 export type RenderData = {
@@ -485,4 +493,9 @@ export const renderDataRotationPivots:
   Partial<Record<EnemyType, { x: number, y: number }>> =
 {
   "Desert Moth": { x: 110, y: 0 },
+}
+
+export const availableArtists: Partial<Record<EnemyType, ArtistName[]>> = {
+  "Beetle": [ "Base game", "Guest" ],
+  "Desert Moth": [ "Base game", "NGL880" ],
 }

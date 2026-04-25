@@ -501,6 +501,25 @@ declare global {
    */
   let addDiscoveredEnemy: (type?: EnemyType, rarity?: Rarity) => void;
 
+  type BiomeEnemyMap =
+    { garden: EnemyType[], desert: EnemyType[], ocean: EnemyType[] };
+
+  /**
+   * A list of common mobs that spawn in each biome.
+   */
+  const biomeEnemyMap: BiomeEnemyMap;
+  
+  /**
+   * A list of rare mobs that spawn in each biome.
+   */
+  const rareBiomeEnemyMap: BiomeEnemyMap;
+
+  /**
+   * A list of "secret" mobs that spawn in each biome (typically Shiny mobs and
+   * mobs that spawn in Divergence biomes).
+   */
+  const secretBiomeEnemyMap: BiomeEnemyMap;
+
   class DeadMenu {
     draw();
   }
@@ -1029,10 +1048,28 @@ declare global {
 
   type Menu = TopMenu | BottomMenu;
 
+  type ToggleOption = {
+    type: "toggle",
+    name: string,
+    state: boolean,
+    changeTime: number,
+    toggleFn: (state: boolean) => void,
+    screenPosition: { x: number, y: number, w: number, h: number },
+  };
+
+  type ButtonOption = {
+    type: "button",
+    name: string,
+    changeTime: number,
+    clickFn: () => void,
+    hovered: boolean,
+    screenPosition: { x: number, y: number, w: number, h: number },
+  };
+
   class SettingsMenu extends TopMenu {
     targetOffset: number;
     currentHeight: number;
-    options: readonly (SettingsOption | SettingsSectionHeading)[];
+    options: (ToggleOption | ButtonOption)[];
 
     draw();
     
@@ -1069,11 +1106,11 @@ declare global {
 
   const changelog: Changelog;
 
-  const changelogButton: HTMLDivElement;
-
   type ChangelogEntry = {text: string, date: string};
 
   const changeloglist: ChangelogEntry[];
+
+  const discordButton: HTMLDivElement;
 
   class SquadUI {
     render(dt: number);

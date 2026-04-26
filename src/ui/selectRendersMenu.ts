@@ -1,6 +1,6 @@
 import { unsafeWindow } from "$";
 import { SETTINGS_OPTION_HEIGHT, SCROLLBAR_LENGTH, SETTINGS_SCROLLBAR_MIN_POS } from "../constants/constants";
-import { availableArtists, type ArtistName } from "../features/renderData";
+import { getAvailableArtists, type ArtistName } from "../features/renderData";
 import { getAllBiomeEnemiesMap, isNil } from "../utils";
 import { DropdownUI } from "./dropdownUi";
 import { MenuInformationalText, MenuSectionHeading, MenuTitle } from "./menuTextItems";
@@ -93,9 +93,6 @@ class SelectRendersMenu {
     // Add the menu's title
     const rawOptions: MenuItem[] = [
       new MenuTitle("Renders Selection Menu", this),
-      new MenuInformationalText(
-        "Note: Changes are not applied until page reload!", this,
-      ),
     ];
 
     // Prepare to add dropdowns for all possible mob types
@@ -108,13 +105,13 @@ class SelectRendersMenu {
         if (!addedEnemies.has(enemyType)) {
           const newDropdown = new DropdownUI(
             enemyType,
-            availableArtists[enemyType] ?? [ "Base game" ],
+            getAvailableArtists(enemyType),
             rendersManager.get(enemyType),
             this,
           );
           newDropdown.addListener((option: ArtistName) => {
             rendersManager.set(enemyType, option);
-          });
+          }, false);
           rawOptions.push(newDropdown);
           addedEnemies.add(enemyType);
         }

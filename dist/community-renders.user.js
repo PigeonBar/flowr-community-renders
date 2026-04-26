@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Flowr - Community Renders
 // @namespace    npm/vite-plugin-monkey
-// @version      0.0.0
+// @version      0.1.0
 // @author       Guest, Jad, NGL880 (artists), PigeonBar (coder)
 // @description  A free, publicly available project for showcasing community-made renders.
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=flowr.fun
 // @downloadURL  https://github.com/PigeonBar/flowr-community-renders/raw/refs/heads/main/dist/community-renders.user.js
 // @updateURL    https://github.com/PigeonBar/flowr-community-renders/raw/refs/heads/main/dist/community-renders.user.js
 // @match        https://flowr.fun/
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (function () {
@@ -15,6 +16,25 @@
 
   function isNil(arg) {
     return arg === void 0 || arg === null;
+  }
+  function getAllBiomeEnemiesMap() {
+    return {
+      garden: [
+        ...biomeEnemyMap.garden,
+        ...rareBiomeEnemyMap.garden,
+        ...secretBiomeEnemyMap.garden
+      ],
+      desert: [
+        ...biomeEnemyMap.desert,
+        ...rareBiomeEnemyMap.desert,
+        ...secretBiomeEnemyMap.desert
+      ],
+      ocean: [
+        ...biomeEnemyMap.ocean,
+        ...rareBiomeEnemyMap.ocean,
+        ...secretBiomeEnemyMap.ocean
+      ]
+    };
   }
   const renderData = deepFreeze({
     // Beetle by Guest, componentW and componentH manually adjusted to center the
@@ -366,6 +386,10 @@
   const renderDataRotationPivots = {
     "Desert Moth": { x: 110, y: 0 }
   };
+  const availableArtists = {
+    "Beetle": ["Base game", "Guest"],
+    "Desert Moth": ["Base game", "NGL880"]
+  };
   function applyCommunityRenders() {
     addCommunityRenders(["Beetle", "Desert Moth"]);
   }
@@ -380,7 +404,7 @@
         const rawPath = {
           ...renderData[key],
           rotation: 0,
-          strokeWidth: renderData[key].baseStrokeWidth / renderDataScales[type]
+          strokeWidth: 0
         };
         if (pivot) {
           rawPath.adjustX -= pivot.x;
@@ -446,6 +470,814 @@
       };
     }
   }
+  const flowrcordLink = "https://discord.com/invite/wJJPU9c6zW";
+  function moveFlowrcordInvite() {
+    const flowrcordButton = {
+      type: "button",
+      name: "Flowr's Official Discord",
+      changeTime: 0,
+      clickFn: () => {
+        window.location.href = flowrcordLink;
+      },
+      hovered: false,
+      screenPosition: { x: 0, y: 0, w: 0, h: 0 }
+    };
+    const options = settingsMenu.options;
+    const buttonIndex = options.findIndex((value) => value.type === "button");
+    options.splice(buttonIndex, 0, flowrcordButton);
+    settingsMenu.h += 50;
+    settingsMenu.targetOffset -= 50;
+  }
+  var _unsafeWindow = /* @__PURE__ */ (() => typeof unsafeWindow != "undefined" ? unsafeWindow : void 0)();
+  const DROPDOWN_UI_PADDING = 13;
+  const DROPDOWN_GREEN_TEXT_FLASH = "#7fff7f";
+  const SETTINGS_BUTTON_PADDING = 13;
+  const SETTINGS_OPTION_HEIGHT = 50;
+  const SCROLLBAR_LENGTH = 120;
+  const SETTINGS_SCROLLBAR_MIN_POS = 80;
+  class SelectRendersManager {
+    /**
+     * A saved record of the renders selected by the player.
+     */
+    savedSelections;
+    constructor() {
+      this.savedSelections = JSON.parse(
+        localStorage.getItem("communityRenderSelections") ?? "{}"
+      );
+    }
+    /**
+     * Retrieves the render selected by the player, or "Base game" if the player
+     * has not made a selection.
+     */
+    get(enemyType) {
+      return this.savedSelections[enemyType] ?? "Base game";
+    }
+    /**
+     * Saves a new selection to local storage.
+     * @param enemyType The {@linkcode EnemyType} being written to.
+     * @param option The {@linkcode ArtistName} to write.
+     */
+    set(enemyType, option) {
+      this.savedSelections[enemyType] = option;
+      localStorage.setItem(
+        "communityRenderSelections",
+        JSON.stringify(this.savedSelections)
+      );
+    }
+  }
+  const rendersManager = new SelectRendersManager();
+  class DropdownUI {
+    /**
+     * The vertical space taken up by this dropdown UI in the parent menu,
+     * excluding the expanded list of options.
+     */
+    height = SETTINGS_OPTION_HEIGHT;
+    /**
+     * The position of the top-left corner of this UI's clickable dropdown menu.
+     * This is updated every frame based on the parent menu's position and scroll
+     * position, and then used for mouse-related calculations.
+     */
+    screenPosition;
+    /**
+     * The mob type that this menu selects renders for.
+     */
+    enemyType;
+    /**
+     * The width of the {@linkcode labelText}.
+     */
+    labelWidth;
+    /**
+     * The options that the user can select in this dropdown menu.
+     */
+    options;
+    /**
+     * The width used to display the dropdown itself, based on the widths of its
+     * contents.
+     */
+    optionsWidth;
+    /**
+     * The height that each dropdown option will take up.
+     */
+    heightPerOption = 30;
+    /**
+     * The choice that the user has currently selected.
+     */
+    currentChoice;
+    /**
+     * Whether or not the user has expanded the dropdown menu to display its list
+     * of options.
+     */
+    expanded;
+    /**
+     * The vertical translation of the list of options, relative to its fully
+     * expanded position. (This number is negative when the list of options is
+     * retracted.)
+     */
+    optionsTranslateY;
+    /**
+     * A list of listeners to listen to the user selecting options in this
+     * dropdown menu.
+     */
+    listeners;
+    /**
+     * The timestamp of the most recent time that the user clicked on an option.
+     */
+    optionSelectedTime;
+    /**
+     * The parent menu that this dropdown menu belongs to.
+     */
+    parentMenu;
+    constructor(enemyType, options, currentChoice, parentMenu) {
+      this.enemyType = enemyType;
+      this.options = options;
+      this.currentChoice = currentChoice;
+      this.parentMenu = parentMenu;
+      this.screenPosition = { x: 0, y: 0 };
+      this.expanded = false;
+      this.optionsTranslateY = -this.totalOptionsHeight;
+      this.listeners = [];
+      this.optionSelectedTime = time - 1e4;
+      this.optionsWidth = 60;
+      ctx.font = "900 17px Ubuntu";
+      for (let name of this.options) {
+        this.optionsWidth = Math.max(this.optionsWidth, ctx.measureText(name).width + 60);
+      }
+      ctx.font = "900 22px Ubuntu";
+      this.labelWidth = ctx.measureText(this.labelText).width;
+    }
+    /**
+     * The total height taken up by this menu's list of options, equal to
+     * {@linkcode options options.length} times {@linkcode heightPerOption}.
+     */
+    get totalOptionsHeight() {
+      return this.options.length * this.heightPerOption;
+    }
+    /**
+     * The label for the dropdown menu, displayed to the left of the menu.
+     */
+    get labelText() {
+      return "- " + this.enemyType + ":";
+    }
+    /**
+     * @returns `true` iff this is a {@linkcode DropdownUI}.
+     */
+    isDropdownUI() {
+      return true;
+    }
+    /**
+     * This function sets {@linkcode currentChoice} to the given option, saves it
+     * to the manager, and triggers all of the {@linkcode listeners}.
+     */
+    setOption(option) {
+      this.currentChoice = option;
+      rendersManager.set(this.enemyType, option);
+      for (let fn of this.listeners) {
+        fn(option);
+      }
+    }
+    /**
+     * Toggles whether or not the dropdown menu is opened or closed.
+     */
+    toggleExpansion() {
+      this.expanded = !this.expanded;
+    }
+    /**
+     * The main function to draw this UI. This also handles setting the cursor to
+     * "pointer" if it is hovering over this dropdown menu, and also updating
+     * {@linkcode screenPosition} based on the parent menu's scrolling.
+     */
+    draw() {
+      this.screenPosition = {
+        x: this.parentMenu.x + DROPDOWN_UI_PADDING + this.labelWidth + DROPDOWN_UI_PADDING,
+        y: this.parentMenu.y + this.parentMenu.renderOffset + this.parentMenu.midHeight - this.parentMenu.scroll - this.heightPerOption / 2
+      };
+      if (this.screenPosition.y > this.parentMenu.y + this.parentMenu.h + this.parentMenu.renderOffset || this.screenPosition.y + this.heightPerOption < this.parentMenu.y + this.parentMenu.renderOffset) {
+        if (this.expanded) {
+          this.toggleExpansion();
+        }
+      }
+      this.drawLabel();
+      this.drawOptions();
+    }
+    /**
+     * Draws the menu's lebel text.
+     * 
+     * This function exists to help with splitting {@linkcode draw} into multiple
+     * steps.
+     */
+    drawLabel() {
+      ctx.font = "900 22px Ubuntu";
+      ctx.lineWidth = 3;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.strokeStyle = "black";
+      ctx.fillStyle = "white";
+      ctx.strokeText(
+        this.labelText,
+        DROPDOWN_UI_PADDING,
+        this.parentMenu.midHeight
+      );
+      ctx.fillText(
+        this.labelText,
+        DROPDOWN_UI_PADDING,
+        this.parentMenu.midHeight
+      );
+    }
+    /**
+     * Draws the menu's currently selected option and expanded list of options.
+     * This also handles setting the cursor to "pointer" if it is hovering over
+     * this dropdown menu.
+     * 
+     * This function exists to help with splitting {@linkcode draw} into multiple
+     * steps.
+     */
+    drawOptions() {
+      let renderX = DROPDOWN_UI_PADDING + this.labelWidth + DROPDOWN_UI_PADDING;
+      let renderY = this.parentMenu.midHeight;
+      ctx.font = "900 17px Ubuntu";
+      ctx.lineWidth = 2;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.strokeStyle = "black";
+      ctx.fillStyle = "white";
+      if (this.expanded) {
+        this.optionsTranslateY = interpolate(this.optionsTranslateY, 0, 0.3);
+      } else {
+        this.optionsTranslateY = interpolate(
+          this.optionsTranslateY,
+          -this.totalOptionsHeight,
+          0.3
+        );
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(
+        renderX - 10,
+        renderY + this.heightPerOption / 2 - 10,
+        this.optionsWidth + 20,
+        (this.options.length + 1) * this.heightPerOption
+      );
+      ctx.clip();
+      ctx.closePath();
+      const hoveredOption = this.hoveredOptionIndex();
+      ctx.translate(0, this.optionsTranslateY);
+      let currentY = renderY + this.heightPerOption;
+      for (let i = 0; i < this.options.length; i++) {
+        const option = this.options[i];
+        ctx.fillStyle = i === hoveredOption ? "#bfbfbf" : "white";
+        ctx.beginPath();
+        ctx.rect(
+          renderX,
+          currentY - this.heightPerOption / 2,
+          this.optionsWidth,
+          this.heightPerOption
+        );
+        ctx.stroke();
+        ctx.fill();
+        ctx.closePath();
+        ctx.fillStyle = "white";
+        ctx.strokeText(option, renderX + 5, currentY);
+        ctx.fillText(option, renderX + 5, currentY);
+        currentY += this.heightPerOption;
+      }
+      ctx.restore();
+      ctx.fillStyle = this.options.length <= 1 ? "#bfbfbf" : "white";
+      ctx.beginPath();
+      ctx.rect(
+        renderX,
+        renderY - this.heightPerOption / 2,
+        this.optionsWidth,
+        this.heightPerOption
+      );
+      ctx.stroke();
+      ctx.fill();
+      ctx.closePath();
+      ctx.fillStyle = this.getCurrentChoiceColour();
+      ctx.strokeText(this.currentChoice, renderX + 5, renderY);
+      ctx.fillText(this.currentChoice, renderX + 5, renderY);
+      ctx.beginPath();
+      ctx.moveTo(renderX + this.optionsWidth - 5, renderY - 5);
+      ctx.lineTo(renderX + this.optionsWidth - 15, renderY + 5);
+      ctx.lineTo(renderX + this.optionsWidth - 25, renderY - 5);
+      ctx.stroke();
+      ctx.closePath();
+      if (this.hoveringOverOpener() || hoveredOption > -1) {
+        setCursor("pointer");
+      }
+    }
+    /**
+     * Determines whether or not the user is hovering over the dropdown menu to
+     * open/close it.
+     * 
+     * Note that if this dropdown menu has only 1 option, the menu becomes
+     * unopenable and is treated as never being hovered.
+     */
+    hoveringOverOpener() {
+      if (!this.expanded && !this.parentMenu.mouseInMenu()) {
+        return false;
+      }
+      if (this.options.length <= 1) {
+        return false;
+      }
+      return mouseInBox(
+        { x: mouse.canvasX, y: mouse.canvasY },
+        {
+          x: this.screenPosition.x,
+          y: this.screenPosition.y,
+          w: this.optionsWidth,
+          h: this.heightPerOption
+        }
+      );
+    }
+    /**
+     * Returns the index of the option that the user is currently hovering over,
+     * or -1 if the user is currently not hovering over any option.
+     */
+    hoveredOptionIndex() {
+      if (!this.expanded && !this.parentMenu.mouseInMenu()) {
+        return -1;
+      }
+      if (mouse.canvasY <= this.screenPosition.y + this.heightPerOption) {
+        return -1;
+      }
+      if (!mouseInBox(
+        { x: mouse.canvasX, y: mouse.canvasY },
+        {
+          x: this.screenPosition.x,
+          y: this.screenPosition.y + this.heightPerOption + this.optionsTranslateY,
+          w: this.optionsWidth,
+          h: this.totalOptionsHeight
+        }
+      )) {
+        return -1;
+      }
+      const relativeY = mouse.canvasY - (this.screenPosition.y + this.heightPerOption + this.optionsTranslateY);
+      const index = Math.floor(relativeY / this.heightPerOption);
+      return Math.max(Math.min(index, this.options.length - 1), 0);
+    }
+    /**
+     * Processes a mouse click input.
+     */
+    mouseDown() {
+      const hoveredOption = this.hoveredOptionIndex();
+      if (this.hoveringOverOpener()) {
+        this.toggleExpansion();
+      } else if (hoveredOption > -1) {
+        this.setOption(this.options[hoveredOption]);
+        this.optionSelectedTime = time;
+        this.expanded = false;
+        this.optionsTranslateY = -this.totalOptionsHeight;
+      } else if (this.expanded) {
+        this.toggleExpansion();
+      }
+    }
+    /**
+     * Adds a listener to {@linkcode listeners}, which will allow it to listen to
+     * all *future* choices made by the user.
+     * @param fn The listener to be added.
+     * @param applyCurrent Whether or not to also apply `fn` to the
+     * {@linkcode currentChoice currently selected option}. Default: `true`.
+     */
+    addListener(fn, applyCurrent = true) {
+      this.listeners.push(fn);
+      if (applyCurrent) {
+        fn(this.currentChoice);
+      }
+    }
+    /**
+     * Returns the colour that should be used for the current option's text. This
+     * text is usually white, and it flashes green for 600ms when the user
+     * successfully selects an option.
+     */
+    getCurrentChoiceColour() {
+      if (time - this.optionSelectedTime < 600) {
+        const ratio = (time - this.optionSelectedTime) / 600;
+        return blendColor(DROPDOWN_GREEN_TEXT_FLASH, "#ffffff", ratio);
+      } else {
+        return "#ffffff";
+      }
+    }
+  }
+  class MenuInformationalText {
+    /**
+     * The vertical space taken up by this item in the parent menu.
+     */
+    height = SETTINGS_OPTION_HEIGHT;
+    /**
+     * The font used to display this text.
+     */
+    font = "900 17px Ubuntu";
+    /**
+     * The `textBaseline` to be used by the canvas rendering engine.
+     */
+    textBaseline = "middle";
+    /**
+     * The border width to be used for displaying this text.
+     */
+    lineWidth = 2;
+    /**
+     * The text to be displayed.
+     */
+    text;
+    /**
+     * The parent menu that this item belongs to.
+     */
+    parentMenu;
+    constructor(text, parentMenu) {
+      this.text = text;
+      this.parentMenu = parentMenu;
+    }
+    /**
+     * @returns `true` iff this is a {@linkcode DropdownUI}.
+     */
+    isDropdownUI() {
+      return false;
+    }
+    /**
+     * Draws the row of text inside the parent menu.
+     */
+    draw() {
+      ctx.font = this.font;
+      ctx.textAlign = "center";
+      ctx.textBaseline = this.textBaseline;
+      ctx.fillStyle = "white";
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = this.lineWidth;
+      ctx.strokeText(
+        this.text,
+        this.parentMenu.w / 2,
+        this.parentMenu.midHeight
+      );
+      ctx.fillText(this.text, this.parentMenu.w / 2, this.parentMenu.midHeight);
+    }
+  }
+  class MenuTitle extends MenuInformationalText {
+    height = 1.5 * SETTINGS_OPTION_HEIGHT;
+    font = "900 32px Ubuntu";
+    textBaseline = "top";
+    lineWidth = 3.75;
+  }
+  class MenuSectionHeading extends MenuInformationalText {
+    /**
+     * Draws this header inside the parent menu.
+     * 
+     * This code is adapted from the Flowr changelog's horizontal dividers.
+     */
+    draw() {
+      super.draw();
+      const textWidth = ctx.measureText(this.text).width;
+      let textLeftPos = this.parentMenu.w / 2 - textWidth / 2;
+      let textRightPos = this.parentMenu.w / 2 + textWidth / 2;
+      ctx.strokeStyle = "#7f7f7f";
+      ctx.lineWidth = 8;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(
+        SETTINGS_BUTTON_PADDING,
+        this.parentMenu.midHeight
+      );
+      ctx.lineTo(
+        textLeftPos - SETTINGS_BUTTON_PADDING,
+        this.parentMenu.midHeight
+      );
+      ctx.stroke();
+      ctx.closePath();
+      ctx.beginPath();
+      ctx.moveTo(
+        textRightPos + SETTINGS_BUTTON_PADDING,
+        this.parentMenu.midHeight
+      );
+      ctx.lineTo(
+        this.parentMenu.w - SETTINGS_BUTTON_PADDING - 16,
+        this.parentMenu.midHeight
+      );
+      ctx.stroke();
+      ctx.closePath();
+    }
+  }
+  class SelectRendersMenu {
+    _scroll;
+    /**
+     * The x-position of the menu.
+     */
+    x;
+    /**
+     * The y-position of the menu before accounting for {@linkcode renderOffset},
+     * which moves the menu off-screen when the menu is toggled off.
+     */
+    y;
+    /**
+     * The overall width of this menu.
+     */
+    w;
+    /**
+     * The overall height of this menu.
+     */
+    h;
+    /**
+     * Whether or not this menu is currently toggled on.
+     */
+    active;
+    /**
+     * The vertical offset applied to this component's render. This is coded to
+     * approach {@linkcode targetOffset} smoothly.
+     */
+    renderOffset;
+    /**
+     * The contents of this selection menu.
+     */
+    options;
+    /**
+     * The y-position of the row currently being drawn, relative to the menu's
+     * position.
+     */
+    currentHeight;
+    /**
+     * The vertical offset of the mouse from the scrollbar's centre if the user
+     * is currently dragging the scrollbar, or `undefined` if the user is not
+     * dragging the scrollbar.
+     */
+    draggingScrollbarOffset;
+    /**
+     * The total height of this menu's contents.
+     */
+    totalHeight;
+    /**
+     * The ratio of scrollbar movement to actual content movement.
+     */
+    scrollbarRatio;
+    constructor() {
+      this._scroll = 0;
+      this.currentHeight = 0;
+      this.draggingScrollbarOffset = void 0;
+      this.x = 110;
+      this.y = 20;
+      this.h = 13.2 * SETTINGS_OPTION_HEIGHT;
+      this.w = 450;
+      this.active = false;
+      this.renderOffset = -this.h - 40;
+      const rawOptions = [
+        new MenuTitle("Renders Selection Menu", this),
+        new MenuInformationalText(
+          "Note: Changes are not applied until page reload!",
+          this
+        )
+      ];
+      const allEnemies = getAllBiomeEnemiesMap();
+      const addedEnemies = /* @__PURE__ */ new Set();
+      const addEnemies = (enemyList) => {
+        for (let enemyType of enemyList) {
+          if (!addedEnemies.has(enemyType)) {
+            const newDropdown = new DropdownUI(
+              enemyType,
+              availableArtists[enemyType] ?? ["Base game"],
+              rendersManager.get(enemyType),
+              this
+            );
+            newDropdown.addListener((option) => {
+              rendersManager.set(enemyType, option);
+            });
+            rawOptions.push(newDropdown);
+            addedEnemies.add(enemyType);
+          }
+        }
+      };
+      rawOptions.push(new MenuSectionHeading("Garden", this));
+      addEnemies(allEnemies.garden);
+      rawOptions.push(new MenuSectionHeading("Desert", this));
+      addEnemies(allEnemies.desert);
+      rawOptions.push(new MenuSectionHeading("Ocean", this));
+      addEnemies(allEnemies.ocean);
+      this.options = Object.freeze(rawOptions);
+      this.totalHeight = this.options.reduce(
+        (previousValue, option) => previousValue + option.height,
+        0
+      );
+      this.scrollbarRatio = (this.h - 2 * SETTINGS_SCROLLBAR_MIN_POS) / (this.totalHeight + 10 - this.h);
+      const originalOnMouseDown = _unsafeWindow.onmousedown;
+      _unsafeWindow.onmousedown = (e) => {
+        originalOnMouseDown?.apply(_unsafeWindow, [e]);
+        if (_unsafeWindow.connected === true) {
+          this.mouseDown();
+        }
+      };
+      const originalOnMouseUp = _unsafeWindow.onmouseup;
+      _unsafeWindow.onmouseup = (e) => {
+        originalOnMouseUp?.apply(_unsafeWindow, [e]);
+        if (_unsafeWindow.connected === true) {
+          this.mouseUp();
+        }
+      };
+      const originalDraw = settingsMenu.draw;
+      settingsMenu.draw = () => {
+        originalDraw.apply(settingsMenu);
+        this.draw();
+      };
+      document.addEventListener("wheel", (e) => {
+        this.updateScroll(e);
+      });
+    }
+    /**
+     * The y-position at the midpoint of the option currently being rendered.
+     */
+    get midHeight() {
+      return this.currentHeight + SETTINGS_OPTION_HEIGHT / 2;
+    }
+    /**
+     * How much the menu's contents are currently shifted due to scrolling.
+     */
+    get scroll() {
+      return this._scroll;
+    }
+    set scroll(val) {
+      this._scroll = Math.min(Math.max(val, 0), this.totalHeight + 10 - this.h);
+    }
+    /**
+     * The target vertical offset of this component. This is set to a negative
+     * value to move the menu offscreen when the menu is toggled off.
+     */
+    get targetOffset() {
+      return this.active ? 0 : -this.h - 40;
+    }
+    /**
+     * The vertical position of the centre of this menu's scrollbar.
+     */
+    get scrollbarPos() {
+      return this.scroll * this.scrollbarRatio + SETTINGS_SCROLLBAR_MIN_POS;
+    }
+    set scrollbarPos(pos) {
+      if (!isNil(this.draggingScrollbarOffset)) {
+        this.scroll = (pos - SETTINGS_SCROLLBAR_MIN_POS - this.y - this.renderOffset) / this.scrollbarRatio;
+      }
+    }
+    /**
+     * The main function to draw this menu.
+     */
+    draw() {
+      this.renderOffset = interpolate(this.renderOffset, this.targetOffset, 0.3);
+      if (!isNil(this.draggingScrollbarOffset)) {
+        this.scrollbarPos = mouse.canvasY - this.draggingScrollbarOffset;
+      }
+      ctx.save();
+      ctx.translate(this.x, this.y + this.renderOffset);
+      ctx.beginPath();
+      ctx.roundRect(0, 0, this.w, this.h, 3);
+      ctx.clip();
+      ctx.closePath();
+      ctx.fillStyle = "#aaaaaa";
+      ctx.beginPath();
+      ctx.roundRect(0, 0, this.w, this.h, 3);
+      ctx.fill();
+      ctx.closePath();
+      ctx.strokeStyle = "#7f7f7f";
+      ctx.lineWidth = 8;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(this.w - 16, this.scrollbarPos - SCROLLBAR_LENGTH / 2);
+      ctx.lineTo(this.w - 16, this.scrollbarPos + SCROLLBAR_LENGTH / 2);
+      ctx.stroke();
+      ctx.closePath();
+      if (this.active && (this.mouseOnScrollbar() || !isNil(this.draggingScrollbarOffset))) {
+        setCursor("pointer");
+      }
+      ctx.translate(0, -this.scroll);
+      this.currentHeight = 5;
+      for (let option of this.options) {
+        option.draw();
+        this.currentHeight += option.height;
+      }
+      ctx.restore();
+      ctx.save();
+      ctx.translate(this.x, this.y + this.renderOffset);
+      ctx.strokeStyle = "#8a8a8a";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.roundRect(0, 0, this.w, this.h, 3);
+      ctx.stroke();
+      ctx.closePath();
+      ctx.translate(0, -this.scroll);
+      this.currentHeight = 5;
+      for (let option of this.options) {
+        if (option.isDropdownUI() && option.expanded) {
+          option.drawOptions();
+        }
+        this.currentHeight += option.height;
+      }
+      ctx.restore();
+    }
+    /**
+     * Processes the user clicking on this menu.
+     */
+    mouseDown() {
+      if (!this.active) {
+        return;
+      }
+      if (this.mouseOnScrollbar()) {
+        this.draggingScrollbarOffset = mouse.canvasY - (this.y + this.renderOffset + this.scrollbarPos);
+      }
+      for (let option of this.options) {
+        if (option.isDropdownUI()) {
+          option.mouseDown();
+        }
+      }
+    }
+    /**
+     * Processes the user releasing a mouse click.
+     */
+    mouseUp() {
+      this.draggingScrollbarOffset = void 0;
+    }
+    /**
+     * Scrolls this menu up/down in response to a mouse wheel input.
+     */
+    updateScroll(e) {
+      if (this.active && this.mouseInMenu()) {
+        this.scroll += e.deltaY / 2;
+      }
+    }
+    /**
+     * Toggles whether this menu is opened or closed.
+     */
+    toggle() {
+      this.active = !this.active;
+      if (!this.active) {
+        this.mouseUp();
+        for (let option of this.options) {
+          if (option.isDropdownUI() && option.expanded) {
+            option.toggleExpansion();
+          }
+        }
+      }
+    }
+    /**
+     * Checks whether the mouse is inside this menu, excluding its borders.
+     */
+    mouseInMenu() {
+      return mouseInBox(
+        { x: mouse.canvasX, y: mouse.canvasY },
+        { x: this.x + 4, y: this.y + 4, w: this.w - 8, h: this.h - 8 }
+      );
+    }
+    /**
+     * Checks whether the mouse is hovering over this menu's scrollbar.
+     */
+    mouseOnScrollbar() {
+      return mouseInBox(
+        { x: mouse.canvasX, y: mouse.canvasY },
+        {
+          x: this.x + this.w - 24,
+          y: this.y + this.renderOffset + this.scrollbarPos - SCROLLBAR_LENGTH / 2,
+          w: 16,
+          h: SCROLLBAR_LENGTH
+        }
+      );
+    }
+  }
+  const selectRendersMenu = new SelectRendersMenu();
+  const selectRendersIcon = new Image(25, 25);
+  selectRendersIcon.src = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB3aWR0aD0iMTAwLjAwMDA1bW0iCiAgIGhlaWdodD0iMTAwLjAwMDA2bW0iCiAgIHZpZXdCb3g9IjAgMCAxMDAuMDAwMDUgMTAwLjAwMDA2IgogICB2ZXJzaW9uPSIxLjEiCiAgIGlkPSJzdmcxIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxkZWZzCiAgICAgaWQ9ImRlZnMxIiAvPgogIDxnCiAgICAgaWQ9ImxheWVyMSIKICAgICB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtODkuNTI0OTc3LC0zNS42MzI2MDUpIj4KICAgIDxyZWN0CiAgICAgICBzdHlsZT0iZmlsbDojZmZmZmZmO2ZpbGwtb3BhY2l0eToxO3N0cm9rZTojZmZmZmZmO3N0cm9rZS13aWR0aDowLjI4MjEzNztzdHJva2UtZGFzaGFycmF5Om5vbmU7c3Ryb2tlLW9wYWNpdHk6MSIKICAgICAgIGlkPSJyZWN0MS04IgogICAgICAgd2lkdGg9IjMxLjEyMTQyOSIKICAgICAgIGhlaWdodD0iMTguNTYwMDA3IgogICAgICAgeD0iLTE3NC43NzIyMyIKICAgICAgIHk9Ijc0LjQxNzAyMyIKICAgICAgIHRyYW5zZm9ybT0ibWF0cml4KC0wLjcwNzEwMDA4LC0wLjcwNzExMzQ5LDAuNzA3MTAwMDgsLTAuNzA3MTEzNDksMCwwKSIgLz4KICAgIDxyZWN0CiAgICAgICBzdHlsZT0iZmlsbDojZmZmZmZmO2ZpbGwtb3BhY2l0eToxO3N0cm9rZTojZmZmZmZmO3N0cm9rZS13aWR0aDowLjUxNDk0NTtzdHJva2UtZGFzaGFycmF5Om5vbmU7c3Ryb2tlLW9wYWNpdHk6MSIKICAgICAgIGlkPSJyZWN0MS04LTEiCiAgICAgICB3aWR0aD0iMzAuODg4NjI4IgogICAgICAgaGVpZ2h0PSI2Mi4yOTIxOTQiCiAgICAgICB4PSItMTc0LjY1NTg3IgogICAgICAgeT0iNS40NDUxNTA0IgogICAgICAgdHJhbnNmb3JtPSJtYXRyaXgoLTAuNzA3MTAwMDgsLTAuNzA3MTEzNDksMC43MDcxMDAwOCwtMC43MDcxMTM0OSwwLDApIiAvPgogICAgPHBhdGgKICAgICAgIHN0eWxlPSJmaWxsOiNmZmZmZmY7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlOiNmZmZmZmY7c3Ryb2tlLXdpZHRoOjAuMDE7c3Ryb2tlLWxpbmVjYXA6c3F1YXJlO3N0cm9rZS1taXRlcmxpbWl0OjA7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZS1vcGFjaXR5OjE7cGFpbnQtb3JkZXI6bWFya2VycyBzdHJva2UgZmlsbCIKICAgICAgIGlkPSJwYXRoNCIKICAgICAgIGQ9Im0gNzQuMzU4OTk5LDEzMy44ODE1OSAtMS4yNzY3NzUsMCAwLjYzODM4OCwtMS4xMDU3MiB6IgogICAgICAgdHJhbnNmb3JtPSJtYXRyaXgoLTE3LjI0NDI0MiwtMTcuMjQ0NTcsMTkuODY3Mjg2LC0xOS44Njc2NjMsLTEyNzYuOTkwOCw0MDQ0LjczNDgpIiAvPgogIDwvZz4KPC9zdmc+Cg==";
+  selectRendersIcon.draggable = false;
+  function addNewMenuButtons() {
+    const selectRenderMenuButton = document.createElement("div");
+    selectRenderMenuButton.className = "newScriptMenuButton";
+    selectRenderMenuButton.appendChild(selectRendersIcon);
+    selectRenderMenuButton.onclick = () => {
+      selectRendersMenu.toggle();
+    };
+    const buttonList = discordButton.parentElement;
+    buttonList?.replaceChild(selectRenderMenuButton, discordButton);
+    const styles = `
+    .newScriptMenuButton {
+      border-color: #3f3fff;
+      border-style: solid;
+      border-width: 3px;
+      background-color: #7f7fff;
+      border-radius: 8px;
+      margin-left: 10px;
+      margin-top: 10px;
+      width: 35px;
+      height: 35px;
+      transition: background-color 0.1s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .newScriptMenuButton:hover {
+      cursor: pointer;
+      background-color: #bfbfff;
+    }
+    
+    #changelogButton:hover {
+      cursor: pointer;  /* I think the Flowr devs forgot to add this */
+    }
+  `;
+    const styleSheet = document.createElement("style");
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+  }
+  moveFlowrcordInvite();
+  addNewMenuButtons();
   applyCommunityRenders();
 
 })();

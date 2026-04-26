@@ -1,23 +1,51 @@
+import { rendersManager } from "../ui/selectRendersManager";
 import { isNil } from "../utils";
-import { renderData, renderDataKeys, renderDataRotationPivots, renderDataRotations, renderDataScales } from "./renderData";
+import { renderData } from "./renderData";
+
+let originalEnemyRenderMap: Record<EnemyType, (e: Enemy) => void> = {};
 
 /**
  * This feature tells {@linkcode enemyRenderMap} to use community renders for
  * certain mobs, instead of the base game's rendering function.
- * 
- * TODO: Rewrite this redirection to use user-selected dropdown options instead
- * of having only one option.
  */
 export function applyCommunityRenders(): void {
-  addCommunityRenders(["Beetle", "Desert Moth"]);
+  // Make a backup copy of `enemyRenderMap` before we overwrite it
+  originalEnemyRenderMap = Object.freeze({...enemyRenderMap});
+
+  // Tell rendering engine to use community renders for available mobs
+  for (let enemyType of Object.keys(renderData)) {
+    enemyRenderMap[enemyType] = function(enemy: Enemy) {
+      communityRender(enemy, enemyType);
+    }
+  }
 }
 
 /**
  * A function to display mobs using the slightly different data format that
  * this script uses to store community-made renders. This code is adapted from
  * Flowr's `sharedRenders()` and `newRender()` functions.
+ * 
+ * Note: The `enemyType` param looks redundant, but it is actually required
+ * because of some spaghetti in Flowr's base code that sometimes causes
+ * `enemy.type` to be missing when drawing gallery entries.
  */
-function communityRender(enemy: Enemy, type: EnemyType) {
+function communityRender(enemy: Enemy, enemyType: EnemyType) {
+  // Search up the rendering data for the artist that the user had selected
+  const artist = rendersManager.get(enemyType);
+  if (enemy.artist !== artist) {
+    // If the artist changed, delete the `renderPaths` set by the previous
+    // artist.
+    enemy.renderPaths = undefined;
+    enemy.artist = artist;
+  }
+  const data = renderData[enemyType]?.[artist];
+  if (artist === "Base game" || isNil(data)) {
+    // If the current artist is "Base game", or if it somehow has no associated
+    // data, use the base game's render function.
+    originalEnemyRenderMap[enemyType](enemy);
+    return;
+  }
+
   // Apparently the base code generates gallery entries using a radius of 1 and
   // a render.radius of 25, so we need to set the radius to 25 in that case
   if (enemy.radius === 1 && enemy.render.radius === 25) {
@@ -26,20 +54,20 @@ function communityRender(enemy: Enemy, type: EnemyType) {
 
   // Throughout the function, some positions/adjustments will be shifted around
   // in order to implement this pivot point.
-  const pivot = renderDataRotationPivots[type];
+  const pivot = data.rotationPivot;
 
   // Initialize the mob's own rendering data by making a copy of the mob type's
   // rendering data.
   if (isNil(enemy.renderPaths)) {
     enemy.renderPaths = [];
-    for (let key of renderDataKeys[type]) {
+    for (let pathData of data.paths) {
       const rawPath = {
-        ...renderData[key],
+        ...pathData,
         rotation: 0,
         strokeWidth: 0,
       };
 
-      if (pivot) {
+      if (!isNil(pivot)) {
         rawPath.adjustX -= pivot.x;
         rawPath.adjustY -= pivot.y;
       }
@@ -72,7 +100,7 @@ function communityRender(enemy: Enemy, type: EnemyType) {
     entry.rotation = (entry.rotationSpeed ?? 0) * time / 1000;
 
     // Apply wiggle offset if uninitialized
-    if (entry.wiggleOffset === undefined) {
+    if (isNil(entry.wiggleOffset)) {
       if (entry.randomWiggleOffset) {
         entry.wiggleOffset = Math.random() * 2 * Math.PI;
       } else {
@@ -81,7 +109,7 @@ function communityRender(enemy: Enemy, type: EnemyType) {
     }
 
     // Apply component wiggling (e.g., legs/mandibles)
-    if (!!entry.wiggleInterval) {
+    if (!isNil(entry.wiggleInterval)) {
       entry.rotation += (entry.wiggleMagnitude ?? 0) * Math.cos(
         enemy.render.time / entry.wiggleInterval * 2 * Math.PI
         + entry.wiggleOffset
@@ -97,11 +125,11 @@ function communityRender(enemy: Enemy, type: EnemyType) {
   // 1. Rotate the render to face the direction that the mob itself it facing
   // 2. Scale the render according to the mob's size
   // 3. Translate the render so that components rotate around the correct pivot
-  const scale = enemy.radius / renderDataScales[type];
+  const scale = enemy.radius / data.scale;
   ctx.save();
-  ctx.rotate(enemy.render.angle + (renderDataRotations[type] ?? 0));
+  ctx.rotate(enemy.render.angle + (data.rotation ?? 0));
   ctx.scale(scale, scale);
-  if (pivot) {
+  if (!isNil(pivot)) {
     ctx.translate(pivot.x, pivot.y);
   }
 
@@ -129,16 +157,4 @@ function communityRender(enemy: Enemy, type: EnemyType) {
   
   // Restore the ctx to its pre-transformation state
   ctx.restore();
-}
-
-/**
- * A helper function to tell {@linkcode enemyRenderMap} to use community-made
- * renders for the given list of mob types.
- */
-function addCommunityRenders(types: EnemyType[]) {
-  for (let type of types) {
-    enemyRenderMap[type] = function(enemy: Enemy) {
-      communityRender(enemy, type);
-    }
-  }
 }

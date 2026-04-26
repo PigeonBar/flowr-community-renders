@@ -5,6 +5,7 @@ import type { RenderData } from "./features/renderFunctions";
 import type { Rarity } from "./enums";
 import type { MobCounter } from "./features/mobGalleryKillCounter";
 import type { BooleanOption, SettingsOption, SettingsSectionHeading } from "./settings/settingsOptions";
+import type { ArtistName } from "./features/renderData";
 
 //// <reference types="vite-plugin-monkey/global" />
 /// <reference types="vite-plugin-monkey/style" />
@@ -90,7 +91,7 @@ declare global {
    * Recursively freezes the given object and all of its properties, and then
    * returns the frozen object.
    */
-  function deepFreeze<T extends Object>(obj: T): T;
+  function deepFreeze<T extends Object>(obj: T): readonly T;
 
   /**
    * The menus at the bottom of the screen (inventory, crafting, gallery)
@@ -623,6 +624,11 @@ declare global {
      */
     renderPaths?: RenderData[];
 
+    /**
+     * The artist whose render is currently being used for this mob.
+     */
+    artist?: ArtistName;
+
     draw();
 
     drawStatsBox(drawBelow?: boolean, rarityOverride?: boolean);
@@ -982,10 +988,11 @@ declare global {
   let savedRenderTransform: DOMMatrix;
 
   const cachedImages: {
+    enemies: Partial<Record<EnemyType, OffscreenCanvas>>,
     statBoxes: {
       enemies: Partial<Record<string, StatsBox>>;
-    }
-  }
+    },
+  };
 
   type HpBarData = {
     x: number;

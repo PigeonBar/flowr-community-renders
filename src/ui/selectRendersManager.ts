@@ -24,15 +24,19 @@ export class SelectRendersManager {
   }
 
   /**
-   * Saves a new selection to local storage.
+   * Saves a new selection to local storage, and also deletes the associated
+   * `cachedImages` if the selected render has changed.
    * @param enemyType The {@linkcode EnemyType} being written to.
    * @param option The {@linkcode ArtistName} to write.
    */
   set(enemyType: EnemyType, option: ArtistName): void {
-    this.savedSelections[enemyType] = option;
-    localStorage.setItem(
-      "communityRenderSelections", JSON.stringify(this.savedSelections)
-    );
+    if (option !== this.get(enemyType)) {
+      cachedImages.enemies[enemyType] = undefined;
+      this.savedSelections[enemyType] = option;
+      localStorage.setItem(
+        "communityRenderSelections", JSON.stringify(this.savedSelections),
+      );
+    }
   }
 }
 

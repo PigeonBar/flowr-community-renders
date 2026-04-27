@@ -10,7 +10,7 @@ export default defineConfig({
         name: 'Flowr - Community Renders',
         namespace: 'npm/vite-plugin-monkey',
         description: 'A free, publicly available project for showcasing community-made renders.',
-        author: 'Guest, Jad, NGL880 (artists), PigeonBar (coder)',
+        author: 'Guest, Jad, Mythicbee, NGL880 (artists), PigeonBar (coder)',
         icon: 'https://www.google.com/s2/favicons?sz=64&domain=flowr.fun',
         match: ['https://flowr.fun/'],
         downloadURL: 'https://github.com/PigeonBar/flowr-community-renders/raw/refs/heads/main/dist/community-renders.user.js',

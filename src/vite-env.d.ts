@@ -572,6 +572,81 @@ declare global {
    */
   const inventory: Inventory;
 
+  type ComponentAnimData = {
+    /**
+     * The component's rotation, measured counterclockwise in radians.
+     */
+    rotation?: number,
+
+    /**
+     * Rotation speed in radians per second, counterclockwise.
+     */
+    rotationSpeed?: number,
+
+    /**
+     * The number of units that the entity must travel for this component to
+     * perform one full wiggle.
+     */
+    wiggleInterval?: number,
+
+    /**
+     * The magnitude, in radians, of the component's wiggling.
+     */
+    wiggleMagnitude?: number,
+
+    /**
+     * The wiggle offset provided by `randomWiggleOffset`.
+     */
+    wiggleOffset: number,
+  }
+
+  /**
+   * The data structure for a single path's rendering data for an Enemy object.
+   */
+  type RenderPath = ComponentAnimData & {
+    /**
+     * The component's base fill colour before shaders (e.g., damage flash).
+     */
+    baseFill: string,
+
+    /**
+     * The component's base stroke colour before shaders (e.g., damage flash).
+     */
+    baseStroke: string,
+
+    /**
+     * The raw stroke width given by the SVG file, before scaling by the SVG
+     * size, the mob's radius, etc..
+     */
+    baseStrokeWidth: number,
+
+    /**
+     * The component's fill colour after shaders (e.g., damage flash).
+     */
+    fill: string,
+    
+    /**
+     * The component's stroke colour after shaders (e.g., damage flash).
+     */
+    stroke: string,
+
+    /**
+     * The component's actual stroke width to be rendered by the rendering
+     * engine, after scaling by the SVG's size.
+     */
+    strokeWidth: number,
+
+    /**
+     * Whether or not `this.path` has been constructed yet.
+     */
+    finished: boolean,
+
+    /**
+     * The final path constructed by the given data.
+     */
+    path: Path2D,
+  };
+
   class Enemy {
     type: EnemyType;
     rarity: Rarity;
@@ -580,6 +655,24 @@ declare global {
     statsBoxAlpha: number;
     isHovered?: boolean;
     radius: number;
+
+    /**
+     * Equal to "enemy" if this is a regular enemy, or "flower" if this is a
+     * summoned pet.
+     */
+    team: "enemy" | "flower";
+
+    /**
+     * The number of *milliseconds* (not ticks/frames) since this mob was last
+     * damaged. This is used for damage flash animations.
+     */
+    ticksSinceLastDamaged: number;
+
+    /**
+     * The value of this mob's {@linkcode ticksSinceLastDamaged} before
+     * processing this frame.
+     */
+    lastTicksSinceLastDamaged: number;
 
     /**
      * A number used internally by some of Flowr's caching code, but is unused
@@ -621,8 +714,17 @@ declare global {
     /**
      * Data used to render certain mob types. This includes cached shape data,
      * as well as some animation data.
+     * 
+     * This is only used for rendering in non-cached mode.
      */
-    renderPaths?: RenderData[];
+    renderPaths?: RenderPath[];
+
+    /**
+     * Animation data for each component of this mob.
+     * 
+     * This is only used for rendering in cached mode.
+     */
+    cachedAnimData?: ComponentAnimData[];
 
     /**
      * The artist whose render is currently being used for this mob.
@@ -955,11 +1057,39 @@ declare global {
   function smoothstep(t: number): number;
 
   /**
+   * Whether or not the *Reduce Damage Flash* setting is toggled on.
+   */
+  let damageFlash: boolean;
+
+  /**
+   * The {@linkcode enemyColor} function below should technically be using an
+   * actual Enemy, but it only needs the fields in this interface to function,
+   * and our script will be taking advantage of this.
+   */
+  interface ColourableLikeEnemy {
+    team: "enemy" | "flower",
+    ticksSinceLastDamaged: number,
+    lastTicksSinceLastDamaged: number,
+  };
+
+  /**
    * Processes the given colour by shading it yellow if the "enemy" is a
    * summoned pet, and applying a damage flash if the enemy was recently
    * damaged. Then, returns the new colour.
    */
-  function enemyColor(colour: string, enemy: Enemy): string;
+  function enemyColor(colour: string, enemy: ColourableLikeEnemy): string;
+
+  /**
+   * Returns a number between 0 and 1, indicating how strong the given enemy's
+   * damage flash should be.
+   */
+  function blendAmount(enemy: ColourableLikeEnemy): number;
+
+  /**
+   * Returns `true` iff this is the first frame of rendering the given enemy's
+   * damage flash animation and {@linkcode damageFlash} is `false`.
+   */
+  function checkForFirstFrame(enemy: ColourableLikeEnemy): boolean;
 
   /**
    * Returns a string representing the given amount after formatting it using
